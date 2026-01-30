@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@theme {
+  --font-orbitron: 'Orbitron', sans-serif;
+  --font-inter: 'Inter', sans-serif;
+  
+  --color-f1-black: #0B0D10;
+  --color-f1-red: #E10600;
+  --color-f1-white: #FFFFFF;
+  --color-f1-graphite: #1F232B;
+  --color-f1-steel: #9AA0A6;
+  --color-f1-blue: #1E90FF;
+  --color-f1-green: #00C853;
+  --color-f1-amber: #FFB300;
+}
+
+:root {
+  font-family: var(--font-inter);
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: dark;
+  color: var(--color-f1-white);
+  background-color: var(--color-f1-black);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-f1-black);
+  color: var(--color-f1-white);
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-orbitron);
+  text-transform: uppercase;
+}
+
