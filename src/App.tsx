@@ -9,23 +9,30 @@ import Circuits from "./pages/Circuits"
 import RaceResults from "./pages/RaceResults"
 import Login from "./pages/Login"
 import Signup from "./pages/Signup"
+import Landing from "./pages/Landing"
+// import CustomCursor from "./components/CustomCursor"
+// import { PageTransition } from "./components/layout/PageTransition"
 
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/schedules" element={<Schedules />} />
-          <Route path="/drivers" element={<Drivers />} />
-          <Route path="/constructors" element={<Constructors />} />
-          <Route path="/circuits" element={<Circuits />} />
-          <Route path="/circuits/:circuitId" element={<CircuitDetails />} />
-          <Route path="/results/:year/:round" element={<RaceResults />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-        </Route>
-      </Routes>
+      {/* <CustomCursor /> */}
+      {/* <PageTransition> */}
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route element={<Layout />}>
+            <Route path="/home" element={<Home />} />
+            <Route path="/schedules" element={<Schedules />} />
+            <Route path="/drivers" element={<Drivers />} />
+            <Route path="/constructors" element={<Constructors />} />
+            <Route path="/circuits" element={<Circuits />} />
+            <Route path="/circuits/:circuitId" element={<CircuitDetails />} />
+            <Route path="/results/:year/:round" element={<RaceResults />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+          </Route>
+        </Routes>
+      {/* </PageTransition> */}
     </Router>
   )
 }
