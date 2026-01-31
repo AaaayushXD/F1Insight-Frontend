@@ -26,12 +26,12 @@ export default function Drivers() {
 
   return (
     <div className="container py-8">
-      <PageHeader 
-        title={`${year} Drivers`}
-        description="The grid of world-class drivers competing for the championship."
-      >
-        <YearSelect year={year} onYearChange={handleYearChange} />
-      </PageHeader>
+        <PageHeader 
+          title={`${year} Drivers`}
+          description="The grid of world-class drivers competing for the championship."
+        >
+          <YearSelect year={year} onYearChange={handleYearChange} />
+        </PageHeader>
 
       {loading ? (
          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -42,7 +42,7 @@ export default function Drivers() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {drivers.map((driver, index) => (
-            <DriverCard key={driver.driverId} driver={driver} index={index} />
+              <DriverCard driver={driver} index={index} />
           ))}
         </div>
       )}

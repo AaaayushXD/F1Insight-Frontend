@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  --font-orbitron: 'Orbitron', sans-serif;
-  --font-inter: 'Inter', sans-serif;
-  
-  --color-f1-black: #0B0D10;
-  --color-f1-red: #E10600;
-  --color-f1-white: #FFFFFF;
-  --color-f1-graphite: #1F232B;
-  --color-f1-steel: #9AA0A6;
-  --color-f1-blue: #1E90FF;
-  --color-f1-green: #00C853;
-  --color-f1-amber: #FFB300;
+  --font-orbitron: "Orbitron", sans-serif;
+  --font-inter: "Inter", sans-serif;
+
+  --color-f1-black: #0b0d10;
+  --color-f1-red: #e10600;
+  --color-f1-white: #ffffff;
+  --color-f1-graphite: #1f232b;
+  --color-f1-steel: #9aa0a6;
+  --color-f1-blue: #1e90ff;
+  --color-f1-green: #00c853;
+  --color-f1-amber: #ffb300;
 }
 
 :root {
@@ -27,6 +27,22 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Global cursor safety: only hide system pointer when custom cursor is active and tracking */
+html.custom-cursor-active,
+html.custom-cursor-active * {
+  cursor: none !important;
+}
+
+/* Hard restoration for all text/input fields to ensure native precision and accessibility */
+html.custom-cursor-active input,
+html.custom-cursor-active textarea,
+html.custom-cursor-active select,
+html.custom-cursor-active [contenteditable="true"],
+html.custom-cursor-active iframe,
+.cursor-auto {
+  cursor: auto !important;
 }
 
 body {
@@ -46,7 +62,12 @@ body {
   width: 100%;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-orbitron);
   text-transform: uppercase;
 }
@@ -65,13 +86,21 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--color-f1-red);
   border-radius: 20px;
   border: 2px solid var(--color-f1-black);
-  background-image: linear-gradient(180deg, var(--color-f1-red) 0%, #990400 100%);
-  box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+  background-image: linear-gradient(
+    180deg,
+    var(--color-f1-red) 0%,
+    #990400 100%
+  );
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #ff0700;
-  background-image: linear-gradient(180deg, #ff0700 0%, var(--color-f1-red) 100%);
+  background-image: linear-gradient(
+    180deg,
+    #ff0700 0%,
+    var(--color-f1-red) 100%
+  );
 }
 
 /* Firefox Support */
@@ -80,3 +109,35 @@ h1, h2, h3, h4, h5, h6 {
   scrollbar-color: var(--color-f1-red) var(--color-f1-black);
 }
 
+/* Premium Card Hover Effect */
+.premium-card {
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.premium-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(225, 6, 0, 0.1);
+}
+
+/* Icon Glow */
+.icon-glow {
+  transition:
+    filter 0.3s ease,
+    transform 0.3s ease;
+}
+
+.icon-glow:hover {
+  filter: drop-shadow(0 0 8px rgba(225, 6, 0, 0.6));
+  transform: scale(1.1);
+}
+
+/* Refined Selection */
+::selection {
+  background-color: var(--color-f1-red);
+  color: white;
+}

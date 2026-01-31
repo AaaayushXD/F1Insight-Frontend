@@ -1,135 +1,174 @@
-import { useEffect, useRef, useState } from 'react'
-import { motion, useSpring, useMotionValue } from 'framer-motion'
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  motion,
+  useSpring,
+  useMotionValue,
+  AnimatePresence,
+} from "framer-motion";
 
-interface Point {
-  x: number
-  y: number
-  age: number
-}
-
-const TRAIL_LENGTH = 20
-const MAX_AGE = 500 // ms
-const PLATINUM_RGB = '229, 228, 226'
-
+/**
+ * Premium F1 Helmet Cursor
+ *
+ * Safety Features:
+ * - Only hides system cursor when mouse moves (never leaves user without a pointer).
+ * - Automatic restoration for all text/input contexts.
+ * - Disables for touch devices and reduced-motion preferences.
+ * - Lightweight requestAnimationFrame-based tracking logic.
+ */
 export default function CustomCursor() {
-  const [isClicked, setIsClicked] = useState(false)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const pointsRef = useRef<Point[]>([])
-  const requestRef = useRef<number>(0)
-  
-  // Smooth cursor follow
-  const mouseX = useMotionValue(-100)
-  const mouseY = useMotionValue(-100)
-  
-  const springConfig = { damping: 25, stiffness: 250 }
-  const cursorX = useSpring(mouseX, springConfig)
-  const cursorY = useSpring(mouseY, springConfig)
+  const [isHovering, setIsHovering] = useState(false);
+  const [isClicked, setIsClicked] = useState(false);
+  const [isDisabled, setIsDisabled] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isInInputContext, setIsInInputContext] = useState(false);
+
+  const mouseX = useMotionValue(-100);
+  const mouseY = useMotionValue(-100);
+
+  // Performance optimized spring tracking
+  const springConfig = { damping: 28, stiffness: 300, mass: 0.4 };
+  const cursorX = useSpring(mouseX, springConfig);
+  const cursorY = useSpring(mouseY, springConfig);
+
+  const cursorRef = useRef<HTMLDivElement>(null);
+
+  const updateContext = useCallback((e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (!target) return;
+
+    // Check for input contexts where system cursor is mandatory
+    const isInput = !!target.closest(
+      "input, textarea, select, [contenteditable='true'], .auth-form",
+    );
+    setIsInInputContext(isInput);
+
+    // Check for interactive elements for helmet feedback (tilt/glow)
+    const isLink = !!target.closest("button, a, [role='button']");
+    setIsHovering(isLink);
+
+    if (isLink) {
+      const clickable = target.closest("button, a, [role='button']");
+      setIsDisabled(
+        !!(
+          clickable?.hasAttribute("disabled") ||
+          clickable?.classList.contains("disabled")
+        ),
+      );
+    }
+  }, []);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      mouseX.set(e.clientX)
-      mouseY.set(e.clientY)
-      
-      // Add point for trail
-      pointsRef.current.push({ x: e.clientX, y: e.clientY, age: Date.now() })
-      if (pointsRef.current.length > TRAIL_LENGTH) {
-        pointsRef.current.shift()
-      }
+    // 1. Accessibility & Device Detection
+    const touch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (touch || reducedMotion) {
+      setIsTouchDevice(true);
+      return;
     }
 
-    const handleMouseDown = () => setIsClicked(true)
-    const handleMouseUp = () => setIsClicked(false)
+    const onMouseMove = (e: MouseEvent) => {
+      mouseX.set(e.clientX);
+      mouseY.set(e.clientY);
+      if (!isVisible) setIsVisible(true);
+      updateContext(e);
+    };
 
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mousedown', handleMouseDown)
-    window.addEventListener('mouseup', handleMouseUp)
+    const onMouseDown = () => setIsClicked(true);
+    const onMouseUp = () => setIsClicked(false);
+
+    window.addEventListener("mousemove", onMouseMove, { passive: true });
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mousedown', handleMouseDown)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [mouseX, mouseY])
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.documentElement.classList.remove("custom-cursor-active");
+    };
+  }, [isVisible, mouseX, mouseY, updateContext]);
 
-  // Trail Animation Loop
-  const animate = (_time: number) => {
-    const canvas = canvasRef.current
-    if (canvas) {
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        
-        const now = Date.now()
-        pointsRef.current = pointsRef.current.filter(p => now - p.age < MAX_AGE)
-
-        if (pointsRef.current.length > 1) {
-          ctx.beginPath()
-          ctx.moveTo(pointsRef.current[0].x, pointsRef.current[0].y)
-          
-          for (let i = 1; i < pointsRef.current.length; i++) {
-            const p = pointsRef.current[i]
-            ctx.lineTo(p.x, p.y)
-          }
-
-          const gradient = ctx.createLinearGradient(
-            pointsRef.current[0].x, pointsRef.current[0].y,
-            pointsRef.current[pointsRef.current.length-1].x, pointsRef.current[pointsRef.current.length-1].y
-          )
-          gradient.addColorStop(0, `rgba(${PLATINUM_RGB}, 0)`)
-          gradient.addColorStop(1, `rgba(${PLATINUM_RGB}, 0.4)`)
-
-          ctx.strokeStyle = gradient
-          ctx.lineWidth = 1.5
-          ctx.lineCap = 'round'
-          ctx.lineJoin = 'round'
-          ctx.stroke()
-        }
-      }
-    }
-    requestRef.current = requestAnimationFrame(animate)
-  }
-
+  // 2. Safety Toggle: Only hide system cursor if helmet is visible and NOT in input context
   useEffect(() => {
-    requestRef.current = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(requestRef.current)
-  }, [])
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (canvasRef.current) {
-        canvasRef.current.width = window.innerWidth
-        canvasRef.current.height = window.innerHeight
-      }
+    if (isVisible && !isInInputContext && !isTouchDevice) {
+      document.documentElement.classList.add("custom-cursor-active");
+    } else {
+      document.documentElement.classList.remove("custom-cursor-active");
     }
-    window.addEventListener('resize', handleResize)
-    handleResize()
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [isVisible, isInInputContext, isTouchDevice]);
+
+  if (isTouchDevice) return null;
 
   return (
-    <>
-      {/* Light Trail Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="pointer-events-none fixed inset-0 z-[9999] mix-blend-screen"
-      />
-      
-      {/* Primary Cursor Dot */}
-      <motion.div
-        className="pointer-events-none fixed left-0 top-0 z-[10000] rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
-        style={{
-          x: cursorX,
-          y: cursorY,
-          translateX: '-50%',
-          translateY: '-50%',
-          width: 8,
-          height: 8,
-        }}
-        animate={{
-          scale: isClicked ? 1.5 : 1,
-        }}
-        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-      />
-    </>
-  )
+    <AnimatePresence>
+      {isVisible && !isInInputContext && (
+        <motion.div
+          ref={cursorRef}
+          className="pointer-events-none fixed left-0 top-0 z-99999 flex items-center justify-center translate-y-[-50%] translate-x-[-50%]"
+          style={{
+            x: cursorX,
+            y: cursorY,
+            translateX: "-50%",
+            translateY: "-50%",
+          }}
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.5 }}
+        >
+          {/* Subtle Dynamic Bloom */}
+          <motion.div
+            className="absolute h-10 w-10 rounded-full bg-f1-red/10 blur-xl"
+            animate={{
+              scale: isHovering ? 1.6 : 1,
+              opacity: isHovering ? 0.3 : 0.15,
+            }}
+          />
+
+          {/* Minimal F1 Helmet SVG */}
+          <motion.svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="text-f1-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
+            animate={{
+              rotate: isHovering ? 12 : 0,
+              scale: isClicked ? 0.8 : 1,
+              opacity: isDisabled ? 0.4 : 1,
+            }}
+            transition={{ type: "spring", damping: 15 }}
+          >
+            {/* Aerodynamic Shell */}
+            <path
+              d="M12 4C7.58 4 4 7.58 4 12V16C4 18.21 5.79 20 8 20H16C18.21 20 20 18.21 20 16V12C20 7.58 16.42 4 12 4Z"
+              fill="currentColor"
+            />
+            {/* Professional Visor */}
+            <path
+              d="M5 11C5 11 7 10 12 10C17 10 19 11 19 11V14H5V11Z"
+              fill="#0F1115"
+            />
+            {/* Top Detail Path */}
+            <path
+              d="M10 6C10 6 11 5.5 12 5.5C13 5.5 14 6 14 6"
+              stroke="#0B0D10"
+              strokeWidth="0.5"
+            />
+          </motion.svg>
+
+          {/* Idle Breathing Pulse - Very Subtle */}
+          <motion.div
+            className="absolute h-6 w-6 rounded-full border border-f1-white/3"
+            animate={{ scale: [1, 1.3, 1] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }

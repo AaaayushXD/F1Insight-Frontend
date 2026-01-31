@@ -1,21 +1,195 @@
-import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card"
-import { Button } from "../components/ui/button"
-import { Input } from "../components/ui/input"
+import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { AuthCard } from "../components/ui/auth/AuthCard";
+import { AuthInput } from "../components/ui/auth/AuthInput";
+import { AuthButton } from "../components/ui/auth/AuthButton";
+import { StrengthMeter } from "../components/ui/auth/StrengthMeter";
+
+type SignupStep = "identity" | "security" | "confirmation";
 
 export default function Signup() {
+  const [step, setStep] = useState<SignupStep>("identity");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [strength, setStrength] = useState(0);
+  const navigate = useNavigate();
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    // Simple strength logic
+    let s = 0;
+    if (val.length > 5) s++;
+    if (val.length > 8) s++;
+    if (/[A-Z]/.test(val)) s++;
+    if (/[0-9!@#$%^&*]/.test(val)) s++;
+    setStrength(s);
+  };
+
+  const nextStep = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (step === "identity") setStep("security");
+    else if (step === "security") setStep("confirmation");
+    else navigate("/login");
+  };
+
+  const variants = {
+    enter: { opacity: 0, x: 20 },
+    center: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -20 },
+  };
+
   return (
-    <div className="flex items-center justify-center min-h-[80vh]">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Create Account</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input placeholder="Email" type="email" />
-          <Input placeholder="Password" type="password" />
-          <Input placeholder="Confirm Password" type="password" />
-          <Button className="w-full">Sign Up</Button>
-        </CardContent>
-      </Card>
+    <div className="flex items-center justify-center min-h-[90vh] p-4 relative overflow-hidden">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-f1-red/5 blur-[120px] rounded-full pointer-events-none" />
+
+      <AuthCard
+        title="Personnel Onboarding"
+        subtitle={
+          step === "identity"
+            ? "Step 1: Identify your credentials"
+            : step === "security"
+              ? "Step 2: Establish security protocols"
+              : "Step 3: Awaiting biometric handshake"
+        }
+      >
+        <form onSubmit={nextStep}>
+          <div className="relative overflow-hidden min-h-[280px]">
+            <AnimatePresence mode="wait">
+              {step === "identity" && (
+                <motion.div
+                  key="identity"
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="space-y-6"
+                >
+                  <AuthInput
+                    label="Personnel ID / Email"
+                    type="email"
+                    placeholder="e.g. driver@f1insight.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <AuthInput
+                    label="Callsign / Username"
+                    placeholder="e.g. Lewis44"
+                    required
+                  />
+
+                  <div className="pt-4">
+                    <AuthButton type="submit">Proceed to Security</AuthButton>
+                  </div>
+                </motion.div>
+              )}
+
+              {step === "security" && (
+                <motion.div
+                  key="security"
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="space-y-6"
+                >
+                  <AuthInput
+                    label="Access Code / Password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => handlePasswordChange(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                  />
+
+                  <StrengthMeter strength={strength} />
+
+                  <AuthInput
+                    label="Verify Access Code"
+                    type="password"
+                    placeholder="••••••••"
+                    required
+                  />
+
+                  <div className="pt-4 flex gap-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 border-f1-white/10 hover:bg-f1-white/5"
+                      onClick={() => setStep("identity")}
+                    >
+                      Back
+                    </Button>
+                    <AuthButton type="submit" className="flex-2">
+                      Initialize Secure Link
+                    </AuthButton>
+                  </div>
+                </motion.div>
+              )}
+
+              {step === "confirmation" && (
+                <motion.div
+                  key="confirmation"
+                  variants={variants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  className="text-center space-y-8"
+                >
+                  <div className="py-4">
+                    <motion.div
+                      className="w-16 h-16 border-2 border-f1-red rounded-full mx-auto flex items-center justify-center"
+                      animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      <div className="w-8 h-px bg-f1-red" />
+                    </motion.div>
+                    <p className="mt-4 text-xs font-orbitron text-f1-red uppercase tracking-widest animate-pulse">
+                      Awaiting OTP Handshake...
+                    </p>
+                  </div>
+
+                  <p className="text-sm text-f1-steel leading-relaxed">
+                    A secure verification packet has been dispatched to <br />
+                    <span className="text-f1-white font-mono">{email}</span>
+                  </p>
+
+                  <div className="pt-4">
+                    <Link to="/otp">
+                      <AuthButton type="button">
+                        Enter Handshake Code
+                      </AuthButton>
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </form>
+
+        <div className="mt-8 text-center">
+          <p className="text-[10px] text-f1-steel uppercase tracking-widest">
+            Already registered?{" "}
+            <Link
+              to="/login"
+              className="text-f1-red hover:underline decoration-f1-red/30 underline-offset-4"
+            >
+              Access Garage
+            </Link>
+          </p>
+        </div>
+      </AuthCard>
     </div>
-  )
+  );
+}
+
+// Minimal Button for the "Back" action to avoid too many moving parts
+function Button({ className, ...props }: any) {
+  return (
+    <button
+      {...props}
+      className={`px-4 py-3 text-[10px] font-orbitron uppercase tracking-widest rounded-md transition-colors ${className}`}
+    />
+  );
 }
