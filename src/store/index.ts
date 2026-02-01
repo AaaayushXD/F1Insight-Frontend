@@ -1,4 +1,4 @@
-import { configureStore, combineReducers } from '@reduxjs/toolkit'
+import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import {
   persistStore,
   FLUSH,
@@ -7,12 +7,13 @@ import {
   PERSIST,
   PURGE,
   REGISTER,
-} from 'redux-persist'
-import scheduleReducer from './slices/scheduleSlice'
-import circuitReducer from './slices/circuitSlice'
-import driverReducer from './slices/driverSlice'
-import constructorReducer from './slices/constructorSlice'
-import resultReducer from './slices/resultSlice'
+} from "redux-persist";
+import scheduleReducer from "./slices/scheduleSlice";
+import circuitReducer from "./slices/circuitSlice";
+import driverReducer from "./slices/driverSlice";
+import constructorReducer from "./slices/constructorSlice";
+import resultReducer from "./slices/resultSlice";
+import notificationReducer from "./slices/notificationSlice";
 
 // We are using persistReducer at the slice level for granular control (whitelisting)
 // But we can also use a root persist config if we prefer.
@@ -28,7 +29,8 @@ const rootReducer = combineReducers({
   driver: driverReducer,
   constructors: constructorReducer,
   result: resultReducer,
-})
+  notification: notificationReducer,
+});
 
 export const store = configureStore({
   reducer: rootReducer,
@@ -38,9 +40,9 @@ export const store = configureStore({
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
       },
     }),
-})
+});
 
-export const persistor = persistStore(store)
+export const persistor = persistStore(store);
 
-export type RootState = ReturnType<typeof store.getState>
-export type AppDispatch = typeof store.dispatch
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;

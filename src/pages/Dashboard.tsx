@@ -4,8 +4,22 @@ import { StatsCard } from "../components/dashboard/StatsCard";
 import { Leaderboard } from "../components/dashboard/Leaderboard";
 import { CircuitMapWidget } from "../components/dashboard/CircuitMapWidget";
 import { PageHeader } from "../components/PageHeader";
+import { useAppDispatch } from "../store/hooks";
+import { pushNotification } from "../store/slices/notificationSlice";
 
 export default function Dashboard() {
+  const dispatch = useAppDispatch();
+
+  const triggerTestNotif = (type: any) => {
+    dispatch(
+      pushNotification({
+        type,
+        title: `${type.toUpperCase()} ALERT`,
+        message: `System detecting new telemetry datapoints for ${type} analysis. Efficiency optimized by 12.4%.`,
+        autoClose: 5000,
+      }),
+    );
+  };
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -31,6 +45,34 @@ export default function Dashboard() {
             <Timer className="text-white h-5 w-5" />
           </motion.div>
         </div>
+      </div>
+
+      {/* Debug Triggers */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => triggerTestNotif("race")}
+          className="px-3 py-1 bg-white/10 border border-white/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-white hover:text-black"
+        >
+          Test Race
+        </button>
+        <button
+          onClick={() => triggerTestNotif("prediction")}
+          className="px-3 py-1 bg-f1-red/10 border border-f1-red/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-f1-red hover:text-white"
+        >
+          Test Prediction
+        </button>
+        <button
+          onClick={() => triggerTestNotif("driver")}
+          className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-blue-500 hover:text-white"
+        >
+          Test Driver
+        </button>
+        <button
+          onClick={() => triggerTestNotif("system")}
+          className="px-3 py-1 bg-gray-500/10 border border-gray-500/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-gray-500 hover:text-white"
+        >
+          Test System
+        </button>
       </div>
 
       {/* Stats Grid */}
