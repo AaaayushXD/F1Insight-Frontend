@@ -1,18 +1,39 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { AuthCard } from "../components/ui/auth/AuthCard";
 import { AuthInput } from "../components/ui/auth/AuthInput";
 import { AuthButton } from "../components/ui/auth/AuthButton";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get the intended destination or default to dashboard
+  const from = (location.state as any)?.from || "/dashboard/overview";
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate auth check
-    setTimeout(() => setIsLoading(false), 2000);
+    setError("");
+    
+    try {
+      await login(email, password);
+      console.log("[Login] Redirecting to:", from);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError("Authentication failed. Please try again.");
+      console.error("[Login] Error:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const containerVariants = {
@@ -32,10 +53,7 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[90vh] p-4 relative overflow-hidden">
-      {/* Ambient background accent */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-f1-red/5 blur-[120px] rounded-full pointer-events-none" />
-
+    <div className="flex items-center justify-center min-h-screen p-4">
       <AuthCard
         title="Garage Entry"
         subtitle="Authenticate telemetry access for F1Insight"
@@ -52,6 +70,8 @@ export default function Login() {
               label="Personnel ID / Email"
               type="email"
               placeholder="e.g. driver@f1insight.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </motion.div>
@@ -61,9 +81,17 @@ export default function Login() {
               label="Access Code / Password"
               type="password"
               placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </motion.div>
+
+          {error && (
+            <motion.div variants={itemVariants} className="text-f1-red text-sm text-center">
+              {error}
+            </motion.div>
+          )}
 
           <motion.div variants={itemVariants} className="pt-2">
             <AuthButton type="submit" isLoading={isLoading}>

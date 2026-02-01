@@ -18,11 +18,17 @@ export function Navbar() {
     href: "/" + pathParts.slice(0, i + 1).join("/"),
   }));
 
-  const navLinks = [
-    { name: "Schedule", href: "/schedules" },
-    { name: "Drivers", href: "/drivers" },
-    { name: "Constructors", href: "/constructors" },
-  ];
+  const navLinks = isDashboard
+    ? [
+        { name: "Schedule", href: "/dashboard/schedules" },
+        { name: "Drivers", href: "/dashboard/drivers" },
+        { name: "Constructors", href: "/dashboard/constructors" },
+      ]
+    : [
+        { name: "Schedule", href: "/schedule" },
+        { name: "Drivers", href: "/drivers" },
+        { name: "Constructors", href: "/constructors" },
+      ];
 
   return (
     <motion.nav
