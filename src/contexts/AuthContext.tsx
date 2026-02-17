@@ -1,92 +1,90 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-
-interface User {
-  id: string
-  email: string
-  name: string
-}
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
+import {
+  loginApi,
+  signupApi,
+  verifyOTPApi,
+  resendOTPApi,
+  refreshTokenApi,
+  logoutApi,
+  type User,
+  type LoginResult,
+} from '../services/auth.service'
 
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (email: string, password: string) => Promise<void>
-  signup: (email: string, password: string, name: string) => Promise<void>
-  logout: () => void
+  pendingUserId: string | null
+  login: (email: string, password: string) => Promise<LoginResult>
+  signup: (email: string, password: string, name: string) => Promise<{ userId: string }>
+  verifyOTP: (userId: string, code: string) => Promise<void>
+  resendOTP: (userId: string, purpose?: 'signup' | 'login' | 'password-reset') => Promise<void>
+  logout: () => Promise<void>
+  setPendingUserId: (id: string | null) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const USER_STORAGE_KEY = 'f1insight_user'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null)
 
-  // Check for existing session on mount
+  // On mount: restore session
   useEffect(() => {
-    const storedUser = localStorage.getItem('f1insight_user')
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser))
-      } catch (error) {
-        console.error('[Auth] Failed to parse stored user:', error)
-        localStorage.removeItem('f1insight_user')
+    const restore = async () => {
+      const stored = localStorage.getItem(USER_STORAGE_KEY)
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as User
+          // Try to refresh the access token
+          await refreshTokenApi()
+          setUser(parsed)
+        } catch {
+          localStorage.removeItem(USER_STORAGE_KEY)
+        }
       }
+      setIsLoading(false)
     }
-    setIsLoading(false)
+    restore()
   }, [])
 
-  const login = async (email: string, _password: string) => {
-    setIsLoading(true)
-    try {
-      // Mock authentication - replace with real API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Simulate successful login
-      const mockUser: User = {
-        id: '1',
-        email,
-        name: email.split('@')[0],
-      }
-      
-      setUser(mockUser)
-      localStorage.setItem('f1insight_user', JSON.stringify(mockUser))
-      console.log('[Auth] Login successful:', email)
-    } catch (error) {
-      console.error('[Auth] Login failed:', error)
-      throw error
-    } finally {
-      setIsLoading(false)
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
+    const result = await loginApi(email, password)
+    if (result.authenticated) {
+      setUser(result.user)
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user))
     }
-  }
+    return result
+  }, [])
 
-  const signup = async (email: string, _password: string, name: string) => {
-    setIsLoading(true)
-    try {
-      // Mock signup - replace with real API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const mockUser: User = {
-        id: '1',
-        email,
-        name,
-      }
-      
-      setUser(mockUser)
-      localStorage.setItem('f1insight_user', JSON.stringify(mockUser))
-      console.log('[Auth] Signup successful:', email)
-    } catch (error) {
-      console.error('[Auth] Signup failed:', error)
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const signup = useCallback(async (email: string, password: string, name: string) => {
+    const result = await signupApi(email, password, name)
+    setPendingUserId(result.userId)
+    return result
+  }, [])
 
-  const logout = () => {
+  const verifyOTP = useCallback(async (userId: string, code: string) => {
+    const verifiedUser = await verifyOTPApi(userId, code)
+    setUser(verifiedUser)
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(verifiedUser))
+    setPendingUserId(null)
+  }, [])
+
+  const resendOTP = useCallback(async (
+    userId: string,
+    purpose: 'signup' | 'login' | 'password-reset' = 'signup'
+  ) => {
+    await resendOTPApi(userId, purpose)
+  }, [])
+
+  const logout = useCallback(async () => {
+    await logoutApi()
     setUser(null)
-    localStorage.removeItem('f1insight_user')
-    console.log('[Auth] Logout successful')
-  }
+    localStorage.removeItem(USER_STORAGE_KEY)
+  }, [])
 
   return (
     <AuthContext.Provider
@@ -94,9 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: !!user,
         isLoading,
+        pendingUserId,
         login,
         signup,
+        verifyOTP,
+        resendOTP,
         logout,
+        setPendingUserId,
       }}
     >
       {children}

@@ -1,9 +1,58 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { User, Shield, Zap, Target, Save, Mail, Camera } from "lucide-react";
+import { User, Shield, Zap, Target, Save, Mail, Camera, LogOut } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { GlowingButton } from "../components/ui/GlowingButton";
+import { useAuth } from "../contexts/AuthContext";
+import { getProfile, updateProfile, type UserProfile } from "../services/user.service";
+import { useNavigate } from "react-router-dom";
 
 export default function ProfilePage() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    getProfile()
+      .then((p) => {
+        setProfile(p);
+        setName(p.name);
+        setEmail(p.email);
+      })
+      .catch(() => {
+        // Fallback to auth context user
+        if (user) {
+          setName(user.name);
+          setEmail(user.email);
+        }
+      });
+  }, [user]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage("");
+    try {
+      const updated = await updateProfile({ name });
+      setProfile((prev) => (prev ? { ...prev, ...updated } : prev));
+      setMessage("Profile updated.");
+    } catch {
+      setMessage("Failed to update profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
+  const initial = (name || user?.name || "U")[0].toUpperCase();
+
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-20">
       <div className="flex flex-col gap-2">
@@ -22,7 +71,7 @@ export default function ProfilePage() {
           <CardContent className="p-8 flex flex-col items-center text-center space-y-6">
             <div className="relative group/avatar">
               <div className="w-32 h-32 rounded-full bg-f1-red flex items-center justify-center text-5xl font-bold text-white shadow-[0_0_40px_rgba(225,6,0,0.4)] border-2 border-f1-red/50">
-                A
+                {initial}
               </div>
               <button className="absolute bottom-0 right-0 p-3 bg-f1-black rounded-full border border-f1-graphite text-f1-steel hover:text-f1-red transition-all shadow-xl group/btn overflow-hidden">
                 <Camera size={16} />
@@ -32,12 +81,12 @@ export default function ProfilePage() {
 
             <div>
               <h2 className="text-2xl font-orbitron font-bold text-white">
-                Aayush Lamichhane
+                {name || user?.name || "User"}
               </h2>
               <div className="flex items-center justify-center gap-2 mt-2">
                 <Zap size={14} className="text-f1-red" />
                 <span className="text-[10px] font-bold text-f1-steel uppercase tracking-widest">
-                  Telemetry Lead
+                  {profile?.role || "Analyst"}
                 </span>
               </div>
             </div>
@@ -45,21 +94,30 @@ export default function ProfilePage() {
             <div className="w-full grid grid-cols-2 gap-4 pt-4 border-t border-f1-graphite/30">
               <div className="text-center">
                 <p className="text-[8px] font-bold text-f1-steel uppercase tracking-widest mb-1">
-                  Accuracy
+                  Predictions
                 </p>
                 <p className="text-xl font-orbitron font-bold text-f1-red">
-                  84.2%
+                  {profile?.stats?.totalPredictions ?? 0}
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-[8px] font-bold text-f1-steel uppercase tracking-widest mb-1">
-                  Rank
+                  Member Since
                 </p>
-                <p className="text-xl font-orbitron font-bold text-white">
-                  #12
+                <p className="text-sm font-orbitron font-bold text-white">
+                  {profile?.stats?.memberSince
+                    ? new Date(profile.stats.memberSince).getFullYear()
+                    : "-"}
                 </p>
               </div>
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-f1-graphite text-f1-steel hover:text-f1-red hover:border-f1-red/50 transition-all text-[10px] font-bold uppercase tracking-widest"
+            >
+              <LogOut size={14} /> Logout
+            </button>
           </CardContent>
         </Card>
 
@@ -74,7 +132,7 @@ export default function ProfilePage() {
                 </h3>
               </div>
               <span className="text-[10px] font-bold text-f1-steel uppercase font-mono">
-                ID: 0x8A2C
+                ID: {profile?.id?.slice(-6) || "------"}
               </span>
             </div>
 
@@ -90,7 +148,8 @@ export default function ProfilePage() {
                   />
                   <input
                     type="text"
-                    defaultValue="Aayush Lamichhane"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     className="w-full bg-f1-black/60 border border-f1-graphite rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:border-f1-red transition-all"
                   />
                 </div>
@@ -106,8 +165,9 @@ export default function ProfilePage() {
                   />
                   <input
                     type="email"
-                    defaultValue="aayush@f1insight.com"
-                    className="w-full bg-f1-black/60 border border-f1-graphite rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:border-f1-red transition-all"
+                    value={email}
+                    disabled
+                    className="w-full bg-f1-black/60 border border-f1-graphite rounded-xl py-3 pl-12 pr-4 text-sm text-white/60 focus:outline-none cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -115,13 +175,13 @@ export default function ProfilePage() {
 
             <div className="space-y-6 pt-4">
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-f1-red">
-                Telemetry Performance
+                Performance Summary
               </h4>
               <div className="grid md:grid-cols-3 gap-4">
                 {[
-                  { label: "Stability", value: "98%", icon: Activity },
-                  { label: "Input Precision", value: "94%", icon: Target },
-                  { label: "Sync Latency", value: "12ms", icon: Zap },
+                  { label: "Total Predictions", value: String(profile?.stats?.totalPredictions ?? 0), icon: Target },
+                  { label: "Avg Accuracy", value: profile?.stats?.avgAccuracy ? `${profile.stats.avgAccuracy.toFixed(1)}%` : "N/A", icon: Zap },
+                  { label: "Last Login", value: profile?.stats?.lastLogin ? new Date(profile.stats.lastLogin).toLocaleDateString() : "N/A", icon: Activity },
                 ].map((stat) => (
                   <div
                     key={stat.label}
@@ -139,10 +199,16 @@ export default function ProfilePage() {
               </div>
             </div>
 
+            {message && (
+              <p className={`text-sm text-center ${message.includes("Failed") ? "text-f1-red" : "text-green-500"}`}>
+                {message}
+              </p>
+            )}
+
             <div className="flex justify-end pt-4">
-              <GlowingButton className="gap-2 px-8">
+              <GlowingButton className="gap-2 px-8" onClick={handleSave} disabled={saving}>
                 <Save size={16} />
-                Synchronize Profile
+                {saving ? "Saving..." : "Synchronize Profile"}
               </GlowingButton>
             </div>
           </CardContent>

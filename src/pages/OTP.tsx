@@ -1,21 +1,45 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AuthCard } from "../components/ui/auth/AuthCard";
 import { AuthButton } from "../components/ui/auth/AuthButton";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function OTP() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { verifyOTP, resendOTP, pendingUserId } = useAuth();
+
+  // Get userId from route state or context
+  const userId =
+    (location.state as any)?.userId || pendingUserId;
+
+  // Redirect if no userId
+  useEffect(() => {
+    if (!userId) {
+      navigate("/login");
+    }
+  }, [userId, navigate]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) value = value.slice(-1);
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
+    setError("");
 
     // Auto-focus next
     if (value && index < 5) {
@@ -29,21 +53,40 @@ export default function OTP() {
     }
   };
 
-  const handleVerify = (e?: React.FormEvent) => {
+  const handleVerify = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (!userId) return;
+
     setIsVerifying(true);
+    setError("");
 
-    // Simulate telemetry handshake
-    setTimeout(() => {
-      setIsVerifying(false);
+    try {
+      const code = otp.join("");
+      await verifyOTP(userId, code);
       setIsSuccess(true);
-
-      // Navigate after success animation
-      setTimeout(() => navigate("/"), 2000);
-    }, 2500);
+      setTimeout(() => navigate("/dashboard/overview", { replace: true }), 2000);
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.message || "Verification failed. Please try again.";
+      setError(msg);
+      setOtp(["", "", "", "", "", ""]);
+      inputs.current[0]?.focus();
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
-  // Full OTP check
+  const handleResend = async () => {
+    if (!userId || resendCooldown > 0) return;
+    try {
+      await resendOTP(userId, "signup");
+      setResendCooldown(60);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to resend OTP.");
+    }
+  };
+
+  // Auto-submit when all digits filled
   useEffect(() => {
     if (otp.every((digit) => digit !== "") && !isVerifying && !isSuccess) {
       handleVerify();
@@ -100,6 +143,10 @@ export default function OTP() {
                 ))}
               </div>
 
+              {error && (
+                <p className="text-f1-red text-sm text-center">{error}</p>
+              )}
+
               <div className="space-y-4">
                 <AuthButton
                   type="submit"
@@ -111,8 +158,15 @@ export default function OTP() {
 
                 <p className="text-[10px] text-f1-steel text-center uppercase tracking-widest leading-loose">
                   Packet not received? <br />
-                  <button type="button" className="text-f1-red hover:underline">
-                    Request Resend
+                  <button
+                    type="button"
+                    className={`text-f1-red hover:underline ${resendCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                    onClick={handleResend}
+                    disabled={resendCooldown > 0}
+                  >
+                    {resendCooldown > 0
+                      ? `Resend in ${resendCooldown}s`
+                      : "Request Resend"}
                   </button>
                 </p>
               </div>

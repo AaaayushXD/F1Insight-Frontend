@@ -11,11 +11,11 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  
-  const { login } = useAuth();
+
+  const { login, setPendingUserId } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Get the intended destination or default to dashboard
   const from = (location.state as any)?.from || "/dashboard/overview";
 
@@ -23,14 +23,23 @@ export default function Login() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-    
+
     try {
-      await login(email, password);
-      console.log("[Login] Redirecting to:", from);
+      const result = await login(email, password);
+
+      if (!result.authenticated && result.requiresOTP) {
+        // User needs OTP verification
+        setPendingUserId(result.userId);
+        navigate("/otp", { state: { userId: result.userId } });
+        return;
+      }
+
       navigate(from, { replace: true });
-    } catch (err) {
-      setError("Authentication failed. Please try again.");
-      console.error("[Login] Error:", err);
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.message ||
+        "Authentication failed. Please try again.";
+      setError(msg);
     } finally {
       setIsLoading(false);
     }

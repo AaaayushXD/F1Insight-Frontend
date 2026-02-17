@@ -7,16 +7,18 @@ interface YearSelectProps {
   year: string;
   onYearChange: (year: string) => void;
   startYear?: number;
+  endYear?: number;
 }
 
 export function YearSelect({
   year,
   onYearChange,
   startYear = 1950,
+  endYear,
 }: YearSelectProps) {
-  const currentYear = 2026;
-  const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) =>
-    (currentYear - i).toString(),
+  const maxYear = endYear ?? 2026;
+  const years = Array.from({ length: maxYear - startYear + 1 }, (_, i) =>
+    (maxYear - i).toString(),
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);

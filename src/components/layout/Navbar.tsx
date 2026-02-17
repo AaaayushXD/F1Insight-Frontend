@@ -1,13 +1,25 @@
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Bell, User, Settings as SettingsIcon } from "lucide-react";
-import { useState } from "react";
+import { Menu, X, Bell, User, Settings as SettingsIcon, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlowingButton } from "../ui/GlowingButton";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../contexts/AuthContext";
+import {
+  getNotifications,
+  markAsRead,
+  markAllAsRead,
+  type Notification,
+} from "../../services/notification.service";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notifRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const { user } = useAuth();
 
   const isDashboard = location.pathname.startsWith("/dashboard");
 
@@ -29,6 +41,65 @@ export function Navbar() {
         { name: "Drivers", href: "/drivers" },
         { name: "Constructors", href: "/constructors" },
       ];
+
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (!notifOpen || !isDashboard) return;
+    getNotifications(1, 8)
+      .then((res) => {
+        setNotifications(res.notifications);
+        setUnreadCount(res.unreadCount);
+      })
+      .catch(() => {});
+  }, [notifOpen, isDashboard]);
+
+  // Fetch unread count on mount for badge
+  useEffect(() => {
+    if (!isDashboard) return;
+    getNotifications(1, 1, true)
+      .then((res) => setUnreadCount(res.unreadCount))
+      .catch(() => {});
+  }, [isDashboard, location.pathname]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    if (notifOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [notifOpen]);
+
+  const handleMarkRead = async (id: string) => {
+    try {
+      await markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, read: true } : n))
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch { /* ignore */ }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch { /* ignore */ }
+  };
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
+  const initial = (user?.name || "U")[0].toUpperCase();
 
   return (
     <motion.nav
@@ -117,14 +188,85 @@ export function Navbar() {
             </>
           ) : (
             <div className="flex items-center gap-6">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="p-2 text-f1-steel hover:text-f1-red transition-colors relative"
-              >
-                <Bell size={20} />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-f1-red rounded-full border-2 border-[#0B0D10]" />
-              </motion.button>
+              {/* Notification Bell with Dropdown */}
+              <div ref={notifRef} className="relative">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setNotifOpen((o) => !o)}
+                  className="p-2 text-f1-steel hover:text-f1-red transition-colors relative"
+                >
+                  <Bell size={20} />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-f1-red rounded-full text-[9px] font-bold text-white border-2 border-[#0B0D10]">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </motion.button>
+
+                <AnimatePresence>
+                  {notifOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-12 w-80 max-h-[420px] overflow-hidden rounded-xl border border-f1-graphite bg-[#0B0D10] shadow-2xl z-50"
+                    >
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-f1-graphite">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">
+                          Notifications
+                        </span>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-[9px] font-bold uppercase tracking-widest text-f1-red hover:text-white transition-colors flex items-center gap-1"
+                          >
+                            <Check size={10} /> Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="overflow-y-auto max-h-[340px]">
+                        {notifications.length > 0 ? (
+                          notifications.map((notif) => (
+                            <button
+                              key={notif._id}
+                              onClick={() => !notif.read && handleMarkRead(notif._id)}
+                              className={cn(
+                                "w-full text-left px-4 py-3 border-b border-f1-graphite/30 hover:bg-f1-graphite/10 transition-colors flex gap-3",
+                                !notif.read && "bg-f1-red/5"
+                              )}
+                            >
+                              <div className={cn(
+                                "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
+                                notif.read ? "bg-f1-graphite" : "bg-f1-red"
+                              )} />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-bold text-white truncate">
+                                  {notif.title}
+                                </div>
+                                <div className="text-[10px] text-f1-steel truncate">
+                                  {notif.message}
+                                </div>
+                                <div className="text-[9px] text-f1-steel/60 mt-1">
+                                  {timeAgo(notif.createdAt)}
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-8 text-center">
+                            <p className="text-[10px] text-f1-steel uppercase tracking-widest">
+                              No notifications
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               <Link to="/dashboard/settings">
                 <motion.button
@@ -145,14 +287,14 @@ export function Navbar() {
                     className="flex items-center gap-3"
                   >
                     <div className="w-9 h-9 rounded-full bg-f1-red flex items-center justify-center font-bold text-xs text-white shadow-[0_0_15px_rgba(225,6,0,0.3)] border border-f1-red/50">
-                      <User size={16} />
+                      {initial}
                     </div>
                     <div className="hidden lg:flex flex-col text-right">
                       <span className="text-[10px] font-bold text-white uppercase tracking-wider group-hover:text-f1-red transition-colors">
-                        Aayush Lamichhane
+                        {user?.name || "User"}
                       </span>
                       <span className="text-[8px] text-f1-steel font-bold uppercase tracking-tighter">
-                        Telemetry Lead
+                        Analyst
                       </span>
                     </div>
                   </motion.div>

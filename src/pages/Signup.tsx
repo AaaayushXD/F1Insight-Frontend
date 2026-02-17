@@ -5,19 +5,24 @@ import { AuthCard } from "../components/ui/auth/AuthCard";
 import { AuthInput } from "../components/ui/auth/AuthInput";
 import { AuthButton } from "../components/ui/auth/AuthButton";
 import { StrengthMeter } from "../components/ui/auth/StrengthMeter";
+import { useAuth } from "../contexts/AuthContext";
 
 type SignupStep = "identity" | "security" | "confirmation";
 
 export default function Signup() {
   const [step, setStep] = useState<SignupStep>("identity");
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [strength, setStrength] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { signup } = useAuth();
 
   const handlePasswordChange = (val: string) => {
     setPassword(val);
-    // Simple strength logic
     let s = 0;
     if (val.length > 5) s++;
     if (val.length > 8) s++;
@@ -26,11 +31,36 @@ export default function Signup() {
     setStrength(s);
   };
 
-  const nextStep = (e: React.FormEvent) => {
+  const nextStep = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step === "identity") setStep("security");
-    else if (step === "security") setStep("confirmation");
-    else navigate("/login");
+    setError("");
+
+    if (step === "identity") {
+      setStep("security");
+    } else if (step === "security") {
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+      // Call real signup API
+      setIsLoading(true);
+      try {
+        const { userId } = await signup(email, password, name);
+        setStep("confirmation");
+        // Store userId for OTP page navigation
+        sessionStorage.setItem("f1insight_pending_userId", userId);
+      } catch (err: any) {
+        const msg =
+          err.response?.data?.message || "Signup failed. Please try again.";
+        setError(msg);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Confirmation step → go to OTP
+      const userId = sessionStorage.getItem("f1insight_pending_userId");
+      navigate("/otp", { state: { userId } });
+    }
   };
 
   const variants = {
@@ -74,6 +104,8 @@ export default function Signup() {
                   <AuthInput
                     label="Callsign / Username"
                     placeholder="e.g. Lewis44"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     required
                   />
 
@@ -107,8 +139,14 @@ export default function Signup() {
                     label="Verify Access Code"
                     type="password"
                     placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                   />
+
+                  {error && (
+                    <p className="text-f1-red text-sm text-center">{error}</p>
+                  )}
 
                   <div className="pt-4 flex gap-4">
                     <Button
@@ -119,7 +157,7 @@ export default function Signup() {
                     >
                       Back
                     </Button>
-                    <AuthButton type="submit" className="flex-2">
+                    <AuthButton type="submit" className="flex-2" isLoading={isLoading}>
                       Initialize Secure Link
                     </AuthButton>
                   </div>
@@ -154,11 +192,9 @@ export default function Signup() {
                   </p>
 
                   <div className="pt-4">
-                    <Link to="/otp">
-                      <AuthButton type="button">
-                        Enter Handshake Code
-                      </AuthButton>
-                    </Link>
+                    <AuthButton type="submit">
+                      Enter Handshake Code
+                    </AuthButton>
                   </div>
                 </motion.div>
               )}
@@ -182,7 +218,7 @@ export default function Signup() {
   );
 }
 
-// Minimal Button for the "Back" action to avoid too many moving parts
+// Minimal Button for the "Back" action
 function Button({ className, ...props }: any) {
   return (
     <button

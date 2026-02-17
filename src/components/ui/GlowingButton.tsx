@@ -7,6 +7,7 @@ interface GlowingButtonProps {
   variant?: "primary" | "ghost";
   className?: string;
   size?: "sm" | "md" | "lg";
+  disabled?: boolean;
 }
 
 export function GlowingButton({
@@ -15,6 +16,7 @@ export function GlowingButton({
   variant = "primary",
   className = "",
   size = "md",
+  disabled = false,
 }: GlowingButtonProps) {
   const sizeClasses = {
     sm: "px-4 py-1.5 text-[10px]",
@@ -33,9 +35,10 @@ export function GlowingButton({
   return (
     <motion.button
       onClick={onClick}
-      whileHover="hover"
-      whileTap={{ scale: 0.98 }}
-      className={`${baseStyles} ${variantStyles} ${sizeClasses[size]} ${className}`}
+      disabled={disabled}
+      whileHover={disabled ? undefined : "hover"}
+      whileTap={disabled ? undefined : { scale: 0.98 }}
+      className={`${baseStyles} ${variantStyles} ${sizeClasses[size]} ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}
     >
       <span className="relative z-10 flex items-center justify-center gap-2">
         {children}

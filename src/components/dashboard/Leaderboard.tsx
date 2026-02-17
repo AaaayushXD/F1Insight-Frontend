@@ -1,41 +1,84 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GlowingBorder } from "../ui/GlowingBorder";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Trophy, TrendingUp } from "lucide-react";
+import { api } from "../../services/api";
+import type { DriverStanding } from "../../services/types";
 
-const drivers = [
-  {
-    rank: 1,
-    name: "Max Verstappen",
-    team: "Red Bull Racing",
-    points: 395,
-    color: "#0600EF",
-  },
-  {
-    rank: 2,
-    name: "Lando Norris",
-    team: "McLaren",
-    points: 331,
-    color: "#FF8700",
-  },
-  {
-    rank: 3,
-    name: "Charles Leclerc",
-    team: "Ferrari",
-    points: 307,
-    color: "#E80020",
-  },
-  {
-    rank: 4,
-    name: "Oscar Piastri",
-    team: "McLaren",
-    points: 262,
-    color: "#FF8700",
-  },
-];
+// Team colors lookup
+const TEAM_COLORS: Record<string, string> = {
+  red_bull: "#0600EF",
+  mclaren: "#FF8700",
+  ferrari: "#E80020",
+  mercedes: "#00D2BE",
+  aston_martin: "#006F62",
+  alpine: "#0090FF",
+  williams: "#005AFF",
+  haas: "#FFFFFF",
+  rb: "#2B4562",
+  sauber: "#52E252",
+};
 
 export function Leaderboard() {
+  const [standings, setStandings] = useState<DriverStanding[]>([]);
+  const year = String(new Date().getFullYear());
+
+  useEffect(() => {
+    api
+      .getDriverStandings(year)
+      .then((data) => setStandings(data.slice(0, 5)))
+      .catch(() => {});
+  }, [year]);
+
+  // Fallback hardcoded data if API fails
+  const drivers =
+    standings.length > 0
+      ? standings.map((s, i) => ({
+          rank: i + 1,
+          name: `${s.Driver.givenName} ${s.Driver.familyName}`,
+          team: s.Constructors?.[0]?.name || "",
+          points: parseInt(s.points),
+          color:
+            TEAM_COLORS[s.Constructors?.[0]?.constructorId || ""] || "#666",
+          driverId: s.Driver.driverId,
+        }))
+      : [
+          {
+            rank: 1,
+            name: "Lando Norris",
+            team: "McLaren",
+            points: 0,
+            color: "#FF8700",
+            driverId: "norris",
+          },
+          {
+            rank: 2,
+            name: "Max Verstappen",
+            team: "Red Bull Racing",
+            points: 0,
+            color: "#0600EF",
+            driverId: "max_verstappen",
+          },
+          {
+            rank: 3,
+            name: "Oscar Piastri",
+            team: "McLaren",
+            points: 0,
+            color: "#FF8700",
+            driverId: "piastri",
+          },
+          {
+            rank: 4,
+            name: "George Russell",
+            team: "Mercedes",
+            points: 0,
+            color: "#00D2BE",
+            driverId: "russell",
+          },
+        ];
+
   return (
     <GlowingBorder className="h-full rounded-2xl">
       <Card className="h-full border-transparent bg-f1-black/60 backdrop-blur-sm">
@@ -49,8 +92,8 @@ export function Leaderboard() {
           <div className="space-y-1">
             {drivers.map((driver, i) => (
               <Link
-                key={driver.name}
-                to={`/dashboard/drivers/${driver.name.toLowerCase().replace(/ /g, "_")}`}
+                key={driver.driverId}
+                to={`/dashboard/drivers/${driver.driverId}`}
               >
                 <motion.div
                   initial={{ x: -20, opacity: 0 }}
@@ -79,9 +122,11 @@ export function Leaderboard() {
                     <p className="text-lg font-orbitron font-bold text-f1-white">
                       {driver.points}
                     </p>
-                    <p className="text-[8px] text-green-500 font-bold flex items-center gap-0.5 justify-end">
-                      <TrendingUp size={10} /> +12
-                    </p>
+                    {i === 0 && (
+                      <p className="text-[8px] text-green-500 font-bold flex items-center gap-0.5 justify-end">
+                        <TrendingUp size={10} /> Leader
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               </Link>

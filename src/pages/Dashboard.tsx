@@ -1,25 +1,114 @@
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Trophy, Map, Flag, TrendingUp, Timer, Zap } from "lucide-react";
 import { StatsCard } from "../components/dashboard/StatsCard";
 import { Leaderboard } from "../components/dashboard/Leaderboard";
-import { CircuitMapWidget } from "../components/dashboard/CircuitMapWidget";
 import { PageHeader } from "../components/PageHeader";
-import { useAppDispatch } from "../store/hooks";
-import { pushNotification } from "../store/slices/notificationSlice";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { fetchSchedule } from "../store/slices/scheduleSlice";
+import { api } from "../services/api";
+import { getNotifications, type Notification } from "../services/notification.service";
+import type { DriverStanding } from "../services/types";
+
+const NEXT_RACE_KEY = "f1insight_next_race";
+
+function formatCountdown(diff: number): string {
+  if (diff <= 0) return "00:00:00:00";
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const secs = Math.floor((diff % (1000 * 60)) / 1000);
+  return `${String(days).padStart(2, "0")}:${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
 
 export default function Dashboard() {
   const dispatch = useAppDispatch();
+  const { races } = useAppSelector((state) => state.schedule);
+  const year = String(new Date().getFullYear());
 
-  const triggerTestNotif = (type: any) => {
-    dispatch(
-      pushNotification({
-        type,
-        title: `${type.toUpperCase()} ALERT`,
-        message: `System detecting new telemetry datapoints for ${type} analysis. Efficiency optimized by 12.4%.`,
-        autoClose: 5000,
-      }),
-    );
-  };
+  const [leaderPoints, setLeaderPoints] = useState<number>(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [countdown, setCountdown] = useState("00:00:00:00");
+
+  useEffect(() => {
+    dispatch(fetchSchedule(year));
+  }, [year, dispatch]);
+
+  // Fetch driver standings for leader points
+  useEffect(() => {
+    api.getDriverStandings(year)
+      .then((standings: DriverStanding[]) => {
+        if (standings.length > 0) {
+          setLeaderPoints(parseInt(standings[0].points));
+        }
+      })
+      .catch(() => {});
+  }, [year]);
+
+  // Fetch recent notifications
+  useEffect(() => {
+    getNotifications(1, 5)
+      .then((res) => setNotifications(res.notifications))
+      .catch(() => {});
+  }, []);
+
+  // Compute next race and cache it
+  const nextRace = useMemo(() => {
+    const now = new Date();
+    const upcoming = races.filter((r) => new Date(r.date) >= now);
+    const next = upcoming.length > 0 ? upcoming[0] : null;
+    if (next) {
+      localStorage.setItem(NEXT_RACE_KEY, JSON.stringify(next));
+    }
+    return next;
+  }, [races]);
+
+  // Fall back to cached next race on first load before API returns
+  const cachedNextRace = useMemo(() => {
+    if (nextRace) return nextRace;
+    try {
+      const cached = localStorage.getItem(NEXT_RACE_KEY);
+      if (cached) return JSON.parse(cached);
+    } catch { /* ignore */ }
+    return null;
+  }, [nextRace]);
+
+  // Live countdown timer — ticks every second
+  useEffect(() => {
+    if (!cachedNextRace) return;
+
+    const raceTime = new Date(cachedNextRace.date).getTime();
+
+    const tick = () => {
+      const diff = raceTime - Date.now();
+      setCountdown(formatCountdown(diff));
+    };
+
+    tick(); // immediate first tick
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [cachedNextRace]);
+
+  // Count completed races (past dates)
+  const completedRaces = useMemo(() => {
+    const now = new Date();
+    return races.filter((r) => new Date(r.date) < now).length;
+  }, [races]);
+
+  const timeAgo = useCallback((dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }, []);
+
+  const upcomingRaces = useMemo(() => {
+    const now = new Date();
+    return races.filter((r) => new Date(r.date) >= now).slice(0, 4);
+  }, [races]);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -31,10 +120,10 @@ export default function Dashboard() {
         <div className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-f1-red/10 border border-f1-red/20 backdrop-blur-md">
           <div className="text-right">
             <p className="text-[10px] font-bold text-f1-steel uppercase tracking-[0.2em]">
-              NEXT EVENT LIVE IN
+              {cachedNextRace ? cachedNextRace.raceName : "SEASON COMPLETE"}
             </p>
             <p className="text-2xl font-orbitron font-bold text-f1-red tabular-nums">
-              14:22:45:08
+              {countdown}
             </p>
           </div>
           <motion.div
@@ -47,62 +136,33 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Debug Triggers */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => triggerTestNotif("race")}
-          className="px-3 py-1 bg-white/10 border border-white/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-white hover:text-black"
-        >
-          Test Race
-        </button>
-        <button
-          onClick={() => triggerTestNotif("prediction")}
-          className="px-3 py-1 bg-f1-red/10 border border-f1-red/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-f1-red hover:text-white"
-        >
-          Test Prediction
-        </button>
-        <button
-          onClick={() => triggerTestNotif("driver")}
-          className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-blue-500 hover:text-white"
-        >
-          Test Driver
-        </button>
-        <button
-          onClick={() => triggerTestNotif("system")}
-          className="px-3 py-1 bg-gray-500/10 border border-gray-500/20 rounded-md text-[8px] font-bold uppercase transition-all hover:bg-gray-500 hover:text-white"
-        >
-          Test System
-        </button>
-      </div>
-
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard
           title="Races Completed"
-          value={18}
-          suffix="/24"
+          value={completedRaces}
+          suffix={`/${races.length}`}
           icon={Flag}
           delay={0.1}
         />
         <StatsCard
           title="Championship Lead"
-          value={64}
+          value={leaderPoints}
           suffix="PTS"
           icon={Trophy}
-          trend={{ value: 12, isUp: true }}
           delay={0.2}
         />
         <StatsCard
-          title="Fastest Lap Avg"
-          value={1.12}
-          suffix="s"
+          title="Season"
+          value={parseInt(year)}
+          suffix=""
           icon={TrendingUp}
           delay={0.3}
         />
         <StatsCard
-          title="System Latency"
-          value={12}
-          suffix="ms"
+          title="ML Model"
+          value={3.09}
+          suffix="MAE"
           icon={Zap}
           delay={0.4}
         />
@@ -111,18 +171,37 @@ export default function Dashboard() {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-8 text-white">
-          <CircuitMapWidget />
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-f1-steel px-2">
-                LATEST PERFORMANCE
+                UPCOMING RACES
               </h4>
-              <div className="h-64 rounded-2xl border border-f1-graphite bg-f1-black/40 flex items-center justify-center relative overflow-hidden group">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(225,6,0,0.1)_0%,transparent_70%)]" />
-                <p className="text-f1-steel font-orbitron text-[10px] uppercase tracking-widest animate-pulse">
-                  Graphing Telemetry...
-                </p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {upcomingRaces.map((race) => (
+                  <div
+                    key={race.round}
+                    className="p-3 rounded-xl border border-f1-graphite bg-f1-black/20 hover:bg-f1-black/40 transition-colors flex justify-between items-center"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-orbitron font-bold text-f1-red">
+                        R{race.round}
+                      </span>
+                      <span className="text-xs font-bold uppercase tracking-wide">
+                        {race.raceName}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-f1-steel font-mono">
+                      {race.date}
+                    </span>
+                  </div>
+                ))}
+                {upcomingRaces.length === 0 && (
+                  <div className="h-64 rounded-2xl border border-f1-graphite bg-f1-black/40 flex items-center justify-center">
+                    <p className="text-f1-steel font-orbitron text-[10px] uppercase tracking-widest">
+                      No upcoming races
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             <div className="space-y-4">
@@ -130,29 +209,33 @@ export default function Dashboard() {
                 RECENT NOTIFICATIONS
               </h4>
               <div className="space-y-3">
-                {[
-                  { title: "DRS Enabled", time: "2m ago", type: "system" },
-                  {
-                    title: "Box this lap - Softs",
-                    time: "5m ago",
-                    type: "msg",
-                  },
-                ].map((notif, i) => (
-                  <div
-                    key={i}
-                    className="p-4 rounded-xl border border-f1-graphite bg-f1-black/20 hover:bg-f1-black/40 transition-colors flex justify-between items-center group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-1 h-1 rounded-full bg-f1-red" />
-                      <span className="text-xs font-bold uppercase tracking-widest">
-                        {notif.title}
+                {notifications.length > 0 ? (
+                  notifications.map((notif) => (
+                    <div
+                      key={notif._id}
+                      className="p-4 rounded-xl border border-f1-graphite bg-f1-black/20 hover:bg-f1-black/40 transition-colors flex justify-between items-center group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-1 h-1 rounded-full ${notif.read ? "bg-f1-steel" : "bg-f1-red"}`} />
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-widest block">
+                            {notif.title}
+                          </span>
+                          <span className="text-[9px] text-f1-steel">{notif.message}</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-f1-steel whitespace-nowrap">
+                        {timeAgo(notif.createdAt)}
                       </span>
                     </div>
-                    <span className="text-[10px] text-f1-steel">
-                      {notif.time}
-                    </span>
+                  ))
+                ) : (
+                  <div className="p-4 rounded-xl border border-f1-graphite bg-f1-black/20 text-center">
+                    <p className="text-[10px] text-f1-steel uppercase tracking-widest">
+                      No notifications yet
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -170,15 +253,16 @@ export default function Dashboard() {
                 QUICK LINK
               </p>
               <h3 className="text-lg font-orbitron font-bold">
-                CIRCUIT ANALYSIS
+                PREDICTION PLAYGROUND
               </h3>
             </div>
-            <motion.button
+            <motion.a
+              href="/dashboard/playground"
               whileHover={{ x: 5 }}
               className="text-[10px] font-bold uppercase tracking-[0.2em] text-f1-red flex items-center gap-2"
             >
-              ENTER PORTAL <span>→</span>
-            </motion.button>
+              RUN PREDICTION <span>→</span>
+            </motion.a>
           </div>
         </div>
       </div>
